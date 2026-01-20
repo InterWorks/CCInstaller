@@ -1,0 +1,31 @@
+# Build artifacts
+dist/
+
+# Logs
+*.log
+
+# Temporary files
+temp/
+tmp/
+
+# Windows
+Thumbs.db
+Desktop.ini
+
+# PowerShell
+*.ps1xml
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Certificates (keep these secure!)
+*.pfx
+*.p12
+*.cer
+
+# Test outputs
+test-results/

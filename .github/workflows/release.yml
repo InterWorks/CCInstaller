@@ -1,0 +1,128 @@
+name: Build and Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  build-windows:
+    name: Build Windows EXE
+    runs-on: windows-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Extract version from tag
+        id: version
+        shell: pwsh
+        run: |
+          $tag = "${{ github.ref_name }}"
+          # Strip leading 'v' and convert to four-part version (e.g. v1.2.3 -> 1.2.3.0)
+          $semver = $tag.TrimStart('v')
+          $parts = $semver.Split('.')
+          while ($parts.Count -lt 4) { $parts += '0' }
+          $fourPart = $parts[0..3] -join '.'
+          echo "version=$fourPart" >> $env:GITHUB_OUTPUT
+          echo "semver=$semver" >> $env:GITHUB_OUTPUT
+
+      - name: Install ps2exe
+        shell: pwsh
+        run: Install-Module -Name ps2exe -Scope CurrentUser -Force -AllowClobber
+
+      - name: Build EXE
+        shell: pwsh
+        run: |
+          $version = "${{ steps.version.outputs.version }}"
+          New-Item -Path .\build -ItemType Directory -Force | Out-Null
+
+          $iconParam = @{}
+          if (Test-Path ".\InterWorks-Logo.ico") {
+            $iconParam['IconFile'] = ".\InterWorks-Logo.ico"
+          }
+
+          Invoke-PS2EXE `
+            -InputFile  ".\Install-ClaudeCode.ps1" `
+            -OutputFile ".\build\ClaudeCodeInstaller.exe" `
+            -RequireAdmin `
+            -NoConsole:$false `
+            -Title       "Claude Code Installer" `
+            -Description "Automated installer for Claude Code CLI and VSCode extension" `
+            -Company     "InterWorks" `
+            -Product     "Claude Code Installer" `
+            -Copyright   "Copyright © $(Get-Date -Format yyyy) InterWorks" `
+            -Version     $version `
+            @iconParam
+
+      - name: Upload EXE artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-installer
+          path: build/ClaudeCodeInstaller.exe
+
+  build-mac:
+    name: Package macOS Installer
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Create .command file
+        run: |
+          mkdir -p build
+          cp Install-ClaudeCode.sh build/Install-ClaudeCode.command
+          chmod +x build/Install-ClaudeCode.command
+        # .command extension lets macOS users double-click to run in Terminal
+
+      - name: Upload .command artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: mac-installer
+          path: build/Install-ClaudeCode.command
+
+  release:
+    name: Publish GitHub Release
+    needs: [build-windows, build-mac]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download Windows artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: windows-installer
+          path: artifacts
+
+      - name: Download Mac artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: mac-installer
+          path: artifacts
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: "Claude Code Installer ${{ github.ref_name }}"
+          body: |
+            ## Claude Code Installer ${{ github.ref_name }}
+
+            ### Windows
+            1. Download **ClaudeCodeInstaller.exe**
+            2. Right-click → **Run as Administrator**
+            3. Follow the on-screen prompts
+
+            ### macOS
+            1. Download **Install-ClaudeCode.command**
+            2. Right-click → **Open** (required the first time due to Gatekeeper)
+            3. Follow the on-screen prompts
+
+            ---
+            After installation, open Claude Code and run `/dev-setup` to complete your environment setup.
+          files: |
+            artifacts/ClaudeCodeInstaller.exe
+            artifacts/Install-ClaudeCode.command
+          draft: false
+          prerelease: false

@@ -460,7 +460,10 @@ gh api /user --jq '.name'
 **"All Members" Team Membership:**
 Once org membership is active, check if the user is in the "All Members" team:
 ```
+# macOS/Linux (bash/zsh):
 gh api /orgs/InterWorks/teams/all-members/memberships/{username} --jq '.state' 2>/dev/null
+# Windows (PowerShell):
+gh api /orgs/InterWorks/teams/all-members/memberships/{username} --jq '.state' 2>$null
 ```
 - If not a member, add them: `gh api --method PUT /orgs/InterWorks/teams/all-members/memberships/{username}`
 - Explain: "We add everyone to the 'All Members' team so you can see shared repos across the org. This is our workaround since GitHub Teams plan doesn't support 'internal' repo visibility."

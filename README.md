@@ -1,246 +1,167 @@
-# Claude Code Installer for Windows
+# Claude Code Installer
 
-Automated installer that handles all the common setup issues with Claude Code on Windows, including Git for Windows installation and PATH configuration.
+Automated installer for Claude Code CLI and the VSCode extension, with all prerequisites handled. Supports Windows and macOS.
 
-## Features
+## For end users
 
-- **Interactive GUI**: User-friendly menu for selecting installation options
-- **Automatic prerequisite installation**: Installs Git for Windows if not present
-- **PATH configuration**: Automatically adds `%USERPROFILE%\.local\bin` to PATH
-- **Git Bash configuration**: Sets `CLAUDE_CODE_GIT_BASH_PATH` environment variable
-- **Flexible installation**: Choose between CLI only, VSCode extension only, or both
-- **Smart detection**: Skips VSCode installation if already present
-- **Comprehensive logging**: Detailed logs for troubleshooting
+Download the installer for your platform from the [latest release](../../releases/latest):
 
-## Prerequisites for Building
+| Platform | File | How to run |
+|----------|------|------------|
+| Windows | `ClaudeCodeInstaller.exe` | Right-click → **Run as Administrator** |
+| macOS | `Install-ClaudeCode.command` | Right-click → **Open** (required the first time due to Gatekeeper) |
 
-- Windows 10/11
-- PowerShell 5.1 or higher
-- Administrator privileges
-- Internet connection (for downloading dependencies)
+Both installers present an interactive menu:
 
-## Building the Installer
+```
+[1] Install Claude Code CLI
+[2] Install VSCode + Claude Code Extension
+[3] Install Both
+[4] Exit
+```
 
-### Option 1: Using ps2exe (Recommended)
+### What gets installed
 
-1. Open PowerShell as Administrator
-2. Navigate to the installer directory:
-   ```powershell
-   cd C:\Users\acewi\Desktop\CCInstaller
-   ```
-3. Run the build script:
-   ```powershell
-   .\Build-Installer.ps1
-   ```
-4. The installer will be created in the `.\build` directory
+**Both platforms:**
+- Git (if not present)
+- Node.js (if not present)
+- Claude Code CLI
+- Visual Studio Code (if selected)
+- Claude Code VSCode extension (if selected)
+- Adds `~/.local/bin` to PATH
+- Drops the `/dev-setup` skill into `~/.claude/skills/interworks-setup/SKILL.md`
 
-### Option 2: Run PowerShell Script Directly (Testing)
+**Windows only:**
+- Git for Windows (includes Git Bash)
+- Sets `CLAUDE_CODE_GIT_BASH_PATH` environment variable
 
-For testing purposes, you can run the PowerShell script directly:
+**macOS only:**
+- Xcode Command Line Tools (includes Git)
+- Homebrew (used to install Node.js)
+
+### After installation
+
+1. **Open a new terminal** (or restart VSCode) for PATH changes to take effect
+2. Run `claude` to log in to your Anthropic account and start using Claude Code CLI
+3. Open Claude Code and run `/dev-setup` to complete your environment setup (GitHub account, org membership, Python, pre-commit, and more)
+
+### Troubleshooting
+
+**Windows log:** `%TEMP%\ClaudeCodeInstaller.log`
+**macOS log:** `/tmp/ClaudeCodeInstaller.log`
+
+| Issue | Solution |
+|-------|----------|
+| Windows: "requires administrator privileges" | Right-click → Run as Administrator |
+| macOS: "cannot be opened because it is from an unidentified developer" | Right-click → Open (instead of double-clicking) |
+| `claude` not found after install | Open a new terminal to refresh PATH |
+| Windows: Git Bash path not detected | Manually set: `$env:CLAUDE_CODE_GIT_BASH_PATH="C:\Program Files\Git\bin\bash.exe"` |
+
+---
+
+## For developers
+
+### Repo structure
+
+| File | Purpose |
+|------|---------|
+| `Install-ClaudeCode.ps1` | Windows installer script |
+| `Install-ClaudeCode.sh` | macOS installer script |
+| `Build-Installer.ps1` | Builds the Windows EXE locally via ps2exe |
+| `.github/workflows/release.yml` | CI: builds and publishes release artifacts on a new `v*` tag |
+
+### Releasing
+
+Merge your changes to `main`, then tag the release:
+
+```bash
+git tag v1.2.3
+git push origin v1.2.3
+```
+
+The Actions workflow will:
+1. Build `ClaudeCodeInstaller.exe` on a Windows runner (version pulled from the tag)
+2. Package `Install-ClaudeCode.command` (the macOS `.sh` with a double-clickable extension)
+3. Attach both to a GitHub Release
+
+Download the artifacts from the release and upload them to Box for distribution.
+
+### Building locally (Windows only)
+
+To build the EXE on your own machine without triggering a release:
 
 ```powershell
-# Interactive mode
+# From an Administrator PowerShell session
+.\Build-Installer.ps1
+# Output: .\build\ClaudeCodeInstaller.exe
+```
+
+The build script installs `ps2exe` automatically if it isn't present.
+
+### Running scripts directly (testing)
+
+**Windows:**
+```powershell
+# Interactive
 .\Install-ClaudeCode.ps1
 
-# Silent mode with CLI only
+# Silent
 .\Install-ClaudeCode.ps1 -Silent -InstallCLI
-
-# Silent mode with VSCode extension only
 .\Install-ClaudeCode.ps1 -Silent -InstallExtension
-
-# Silent mode with both
 .\Install-ClaudeCode.ps1 -Silent -InstallCLI -InstallExtension
 ```
 
-## Using the Installer
+**macOS:**
+```bash
+# Interactive
+bash Install-ClaudeCode.sh
 
-### End-User Instructions
-
-1. Right-click on `ClaudeCodeInstaller.exe`
-2. Select "Run as Administrator"
-3. Follow the on-screen prompts:
-   - Option 1: Install Claude Code CLI
-   - Option 2: Install VSCode + Claude Code Extension
-   - Option 3: Install Both
-   - Option 4: Exit
-
-## What Gets Installed
-
-### For CLI Installation:
-- Git for Windows (if not present)
-- Claude Code CLI
-- Sets `CLAUDE_CODE_GIT_BASH_PATH` environment variable
-- Adds `%USERPROFILE%\.local\bin` to PATH
-
-### For VSCode Extension Installation:
-- Visual Studio Code (if not present)
-- Claude Code extension for VSCode
-- All prerequisites from CLI installation
-
-## Post-Installation
-
-After installation completes:
-
-1. **Restart your terminal** (PowerShell, CMD, or Git Bash)
-2. **Restart VSCode** if it was already running
-3. Run `claude` in your terminal to start using Claude Code CLI
-4. Open VSCode and the Claude Code extension should be available
-
-## Troubleshooting
-
-### Installation Log
-
-Detailed logs are saved to: `%TEMP%\ClaudeCodeInstaller.log`
-
-### Common Issues
-
-**Issue**: "This installer requires administrator privileges"
-- **Solution**: Right-click the installer and select "Run as Administrator"
-
-**Issue**: `claude` command not found after installation
-- **Solution**: Close and reopen your terminal to refresh environment variables
-
-**Issue**: Git Bash path not detected
-- **Solution**: Check installation log for the detected path. Manually set if needed:
-  ```powershell
-  $env:CLAUDE_CODE_GIT_BASH_PATH="C:\Program Files\Git\bin\bash.exe"
-  ```
-
-## Code Signing
-
-To sign the executable for enterprise distribution:
-
-```powershell
-# Using your company's code signing certificate
-signtool sign /f "path\to\certificate.pfx" /p "password" /tr http://timestamp.digicert.com /td sha256 /fd sha256 "build\ClaudeCodeInstaller.exe"
+# Silent
+bash Install-ClaudeCode.sh --silent --cli
+bash Install-ClaudeCode.sh --silent --vscode
+bash Install-ClaudeCode.sh --silent --cli --vscode
 ```
 
-## Customization
+### Testing checklist
 
-### Changing Installation Defaults
-
-Edit [Install-ClaudeCode.ps1](Install-ClaudeCode.ps1) and modify the `$Script:Config` section:
-
-```powershell
-$Script:Config = @{
-    GitInstallerUrl = "..."      # Update to specific Git version
-    VSCodeInstallerUrl = "..."   # Update to specific VSCode version
-    LocalBinPath = "..."         # Change default bin path
-    # ... more options
-}
-```
-
-### Adding a Custom Icon
-
-1. Create or obtain a `.ico` file (see [ICON-GUIDE.md](ICON-GUIDE.md) for detailed instructions)
-2. Save it as `InterWorks-Logo.ico` in the installer directory
-3. Build the installer - the icon will be automatically included
-
-Or specify a custom path:
-```powershell
-.\Build-Installer.ps1 -IconFile ".\path\to\your-logo.ico"
-```
-
-For detailed icon creation instructions, see [ICON-GUIDE.md](ICON-GUIDE.md)
-
-### Branding
-
-Update the build script with your company information:
-
-```powershell
-Company = "Your Company Name"
-Product = "Claude Code Installer"
-Copyright = "Copyright © $(Get-Date -Format yyyy) Your Company"
-```
-
-## Testing Checklist
-
-Test the installer in these scenarios:
-
+**Windows:**
 - [ ] Fresh Windows 11 VM with no prerequisites
 - [ ] Machine with Git already installed
 - [ ] Machine with VSCode already installed
-- [ ] Machine with both Git and VSCode installed
-- [ ] Machine with Node.js not installed
 - [ ] Silent installation mode
 - [ ] Non-administrator user (should show error)
 
-## Architecture
+**macOS:**
+- [ ] Fresh macOS install (no Homebrew, no Xcode tools)
+- [ ] Machine with Homebrew already installed
+- [ ] Machine with VSCode already installed
+- [ ] Right-click → Open Gatekeeper flow on `.command` file
+- [ ] Silent installation mode
 
-### Components
+### Code signing
 
-1. **Install-ClaudeCode.ps1**: Main installer script
-   - Prerequisite checking
-   - Component installation
-   - Environment configuration
-   - User interface
-
-2. **Build-Installer.ps1**: Build automation
-   - Packages PowerShell into EXE
-   - Sets executable metadata
-   - Handles versioning
-
-### Installation Flow
-
-```
-┌─────────────────────────────────────┐
-│  Check Administrator Privileges     │
-└───────────────┬─────────────────────┘
-                │
-                ▼
-┌─────────────────────────────────────┐
-│  Show Menu / Parse Parameters       │
-└───────────────┬─────────────────────┘
-                │
-                ▼
-┌─────────────────────────────────────┐
-│  Check & Install Git for Windows    │
-└───────────────┬─────────────────────┘
-                │
-                ▼
-┌─────────────────────────────────────┐
-│  Configure Git Bash Path            │
-└───────────────┬─────────────────────┘
-                │
-                ▼
-┌─────────────────────────────────────┐
-│  Add Local Bin to PATH              │
-└───────────────┬─────────────────────┘
-                │
-                ▼
-┌─────────────────────────────────────┐
-│  Install Selected Components:       │
-│  • Claude CLI (via npm)             │
-│  • VSCode (if needed)               │
-│  • Claude Extension                 │
-└───────────────┬─────────────────────┘
-                │
-                ▼
-┌─────────────────────────────────────┐
-│  Show Completion Message            │
-└─────────────────────────────────────┘
+**Windows** — to sign the EXE for enterprise distribution:
+```powershell
+signtool sign /f "path\to\certificate.pfx" /p "password" /tr http://timestamp.digicert.com /td sha256 /fd sha256 "build\ClaudeCodeInstaller.exe"
 ```
 
-## License
+**macOS** — to eliminate the Gatekeeper prompt, sign the `.command` file with an Apple Developer certificate:
+```bash
+codesign --sign "Developer ID Application: InterWorks" Install-ClaudeCode.command
+```
 
-This installer is provided as-is for internal company use. Ensure compliance with licenses for all installed components:
-- Git for Windows: GPL v2
-- Visual Studio Code: Microsoft Software License
-- Claude Code: Anthropic's terms of service
+### Customization
 
-## Support
+**Windows** — edit the `$Script:Config` block at the top of `Install-ClaudeCode.ps1` to pin specific versions or change paths:
+```powershell
+$Script:Config = @{
+    GitInstallerUrl  = "..."   # Pin a specific Git for Windows version
+    VSCodeInstallerUrl = "..." # Pin a specific VSCode version
+    NodeInstallerUrl = "..."   # Pin a specific Node.js version
+    LocalBinPath     = "..."   # Change the default bin path
+}
+```
 
-For issues or questions:
-1. Check the installation log at `%TEMP%\ClaudeCodeInstaller.log`
-2. Review the troubleshooting section above
-3. Contact your IT support team
-4. Report bugs to the installer maintainer
+**macOS** — equivalent URLs and paths are at the top of `Install-ClaudeCode.sh`.
 
-## Version History
-
-### v1.0.0 (Initial Release)
-- Interactive installation menu
-- CLI and VSCode extension support
-- Automatic Git for Windows installation
-- PATH configuration
-- Comprehensive logging
+**Icon** — place `InterWorks-Logo.ico` in the repo root before building. See [ICON-GUIDE.md](ICON-GUIDE.md) for creation instructions.

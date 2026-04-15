@@ -88,7 +88,7 @@ Download the artifacts from the release and upload them to Box for distribution.
 
 ### Building locally (Windows only)
 
-To build the EXE on your own machine without triggering a release:
+> **Normal releases don't require this.** Pushing a `v*` tag triggers the Actions workflow, which builds the EXE automatically on a Windows runner. Local builds are only needed if you want to test the EXE before tagging a release.
 
 ```powershell
 # From an Administrator PowerShell session
@@ -140,12 +140,26 @@ bash Install-ClaudeCode.sh --silent --cli --vscode
 
 ### Code signing
 
-**Windows** — to sign the EXE for enterprise distribution:
+Code signing removes the security warnings users see when running downloaded executables:
+- **Windows:** SmartScreen shows "Windows protected your PC" for unsigned EXEs
+- **macOS:** Gatekeeper shows "cannot be opened because it is from an unidentified developer" for unsigned files (the right-click → Open workaround bypasses this)
+
+#### Windows
+
+The git history shows the EXE was previously signed by the **Curator Install Server** (commit `e01bfaf`). The details of that process — what certificate was used, how it's stored, and how to invoke it — are not documented here. **Check with Derrick Austin** before attempting to sign a new release.
+
+Once the certificate and process are confirmed, signing looks like:
 ```powershell
 signtool sign /f "path\to\certificate.pfx" /p "password" /tr http://timestamp.digicert.com /td sha256 /fd sha256 "build\ClaudeCodeInstaller.exe"
 ```
 
-**macOS** — to eliminate the Gatekeeper prompt, sign the `.command` file with an Apple Developer certificate:
+Ideally this step would be added to the Actions release workflow so every release is signed automatically without a manual step.
+
+#### macOS
+
+Signing a `.command` file requires an **Apple Developer ID certificate** ($99/year via the Apple Developer Program). Without it, users must right-click → Open the first time, which is documented in the end-user instructions above and is acceptable for internal distribution.
+
+If a certificate is obtained in the future:
 ```bash
 codesign --sign "Developer ID Application: InterWorks" Install-ClaudeCode.command
 ```

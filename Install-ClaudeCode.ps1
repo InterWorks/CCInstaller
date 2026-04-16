@@ -702,9 +702,10 @@ function Main {
 
     # Determine installation mode
     if ($Silent) {
-        # Use parameters for silent mode
-        Start-Installation -InstallCLI:$InstallCLI -InstallVSCodeAndExtension:$InstallExtension
-        Show-CompletionMessage -InstalledCLI:$InstallCLI -InstalledVSCode:$InstallExtension
+        # -InstallVSCode and -InstallExtension both trigger the combined VSCode + extension path
+        $installVSCodeAndExtension = $InstallVSCode -or $InstallExtension
+        Start-Installation -InstallCLI:$InstallCLI -InstallVSCodeAndExtension:$installVSCodeAndExtension
+        Show-CompletionMessage -InstalledCLI:$InstallCLI -InstalledVSCode:$installVSCodeAndExtension
     }
     else {
         # Interactive mode

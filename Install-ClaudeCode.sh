@@ -142,7 +142,7 @@ check_claude_cli() {
 }
 
 check_claude_extension() {
-    if code --list-extensions 2>/dev/null | grep -qi "^${CLAUDE_EXTENSION_ID}$"; then
+    if code --list-extensions 2>/dev/null | grep -Fqix "${CLAUDE_EXTENSION_ID}"; then
         return 0
     fi
     return 1
@@ -202,8 +202,13 @@ add_homebrew_to_shell_profile() {
         fi
     done
 
-    # Add to .zprofile (default shell on macOS 10.15+)
-    local target="$HOME/.zprofile"
+    # Write to the profile matching the active shell
+    local target
+    if [[ "$SHELL" == */zsh ]]; then
+        target="$HOME/.zprofile"
+    else
+        target="$HOME/.bash_profile"
+    fi
     echo "" >> "$target"
     echo "# Homebrew" >> "$target"
     echo "$brew_shellenv" >> "$target"
@@ -361,8 +366,10 @@ This skill is the bootstrap entry point for new staff. It must reach users **bef
 
 The source of truth for this file is `InterWorks/claude-plugins` (for version control alongside the other InterWorks skills), but the distribution mechanism is the installer, not the marketplace.
 
-- **Windows:** The custom InterWorks installer drops this skill file into `~/.claude/skills/interworks-setup/SKILL.md` alongside Git, Node.js, GitHub CLI, Python, pre-commit, gitleaks, and Claude Code.
-- **macOS:** The macOS installer does the same.
+- **Windows:** The custom InterWorks installer drops this skill file into `~/.claude/skills/interworks-setup/SKILL.md` so `/dev-setup` is available immediately, before marketplace access is configured. The installer also handles Git, Node.js, and Claude Code itself.
+- **macOS:** The macOS installer likewise places this skill file on disk as part of installing Claude Code components.
+
+This skill then guides the user through everything the installer doesn't handle directly: GitHub account setup, org membership, Python, pre-commit/gitleaks, and marketplace access.
 
 Once this skill gets the user into the InterWorks GitHub org, **server-managed settings** connects their Claude Code to the private plugin marketplace (`InterWorks/claude-plugins`), which delivers the remaining `/interworks:*` skills (starting with `/interworks:dev-new-project`) automatically.
 
@@ -599,13 +606,13 @@ run_installation() {
     # Step 2: Ensure Homebrew is available
     if ! check_homebrew; then
         log WARNING "Homebrew is required to install Node.js and other tools."
-        if [[ "$SILENT" == false ]]; then
-            read -rp "Install Homebrew? (Y/N): " response
-            if [[ "$response" != [Yy] ]]; then
-                log WARNING "Skipping Homebrew — Node.js installation will be skipped"
-            else
-                install_homebrew || log WARNING "Homebrew installation failed — Node.js installation will be skipped"
-            fi
+        if [[ "$SILENT" == true ]]; then
+            log ERROR "Homebrew is missing. Silent mode cannot run the interactive Homebrew installer. Install Homebrew first or re-run without --silent."
+            return 1
+        fi
+        read -rp "Install Homebrew? (Y/N): " response
+        if [[ "$response" != [Yy] ]]; then
+            log WARNING "Skipping Homebrew — Node.js installation will be skipped"
         else
             install_homebrew || log WARNING "Homebrew installation failed — Node.js installation will be skipped"
         fi
@@ -629,7 +636,7 @@ run_installation() {
         if check_claude_cli; then
             log SUCCESS "Claude Code CLI is already installed, skipping"
         else
-            install_claude_cli || log ERROR "Claude CLI installation failed"
+            install_claude_cli || { log ERROR "Claude CLI installation failed"; return 1; }
         fi
     fi
 

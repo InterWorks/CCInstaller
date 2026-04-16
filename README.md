@@ -7,9 +7,9 @@ Automated installer for Claude Code CLI and the VSCode extension, with all prere
 Download the installer for your platform from the [latest release](../../releases/latest):
 
 | Platform | File | How to run |
-|----------|------|------------|
+| -------- | ---- | ---------- |
 | Windows | `ClaudeCodeInstaller.exe` | Right-click → **Run as Administrator** |
-| macOS | `Install-ClaudeCode.command` | Right-click → **Open** (required the first time due to Gatekeeper) |
+| macOS | `Install-ClaudeCode-mac.zip` | Unzip, then right-click `Install-ClaudeCode.command` → **Open** (required the first time due to Gatekeeper). If macOS says the file is not executable, run `chmod +x Install-ClaudeCode.command` in Terminal first. |
 
 Both installers present an interactive menu:
 
@@ -28,8 +28,8 @@ Both installers present an interactive menu:
 - Claude Code CLI
 - Visual Studio Code (if selected)
 - Claude Code VSCode extension (if selected)
-- Adds `~/.local/bin` to PATH
-- Drops the `/dev-setup` skill into `~/.claude/skills/interworks-setup/SKILL.md`
+- Adds the user-local bin directory to PATH (`~/.local/bin` on macOS; `%USERPROFILE%\.local\bin` on Windows)
+- Drops the `/dev-setup` skill into the Claude home directory (`~/.claude/skills/interworks-setup/SKILL.md` on macOS; `%USERPROFILE%\.claude\skills\interworks-setup\SKILL.md` on Windows)
 
 **Windows only:**
 - Git for Windows (includes Git Bash)
@@ -51,9 +51,10 @@ Both installers present an interactive menu:
 **macOS log:** `/tmp/ClaudeCodeInstaller.log`
 
 | Issue | Solution |
-|-------|----------|
+| ----- | -------- |
 | Windows: "requires administrator privileges" | Right-click → Run as Administrator |
 | macOS: "cannot be opened because it is from an unidentified developer" | Right-click → Open (instead of double-clicking) |
+| macOS: "permission denied" running `.command` after unzip | Run `chmod +x Install-ClaudeCode.command` in Terminal first |
 | `claude` not found after install | Open a new terminal to refresh PATH |
 | Windows: Git Bash path not detected | Manually set: `$env:CLAUDE_CODE_GIT_BASH_PATH="C:\Program Files\Git\bin\bash.exe"` |
 

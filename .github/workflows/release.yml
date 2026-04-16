@@ -23,11 +23,14 @@ jobs:
         shell: pwsh
         run: |
           $tag = "${{ github.ref_name }}"
-          # Strip leading 'v' and convert to four-part version (e.g. v1.2.3 -> 1.2.3.0)
           $semver = $tag.TrimStart('v')
-          $parts = $semver.Split('.')
-          while ($parts.Count -lt 4) { $parts += '0' }
-          $fourPart = $parts[0..3] -join '.'
+          # Validate: must be numeric semver only (no prerelease/build metadata)
+          if ($semver -notmatch '^\d+\.\d+\.\d+$') {
+            Write-Error "Tag '$tag' is not a valid release version (expected vMAJOR.MINOR.PATCH, e.g. v1.2.3). Prerelease tags like v1.0.0-rc.1 are not supported."
+            exit 1
+          }
+          # Convert to four-part version required by ps2exe (e.g. 1.2.3 -> 1.2.3.0)
+          $fourPart = "$semver.0"
           echo "version=$fourPart" >> $env:GITHUB_OUTPUT
           echo "semver=$semver" >> $env:GITHUB_OUTPUT
 
@@ -99,13 +102,15 @@ jobs:
           pathlib.Path('build/Install-ClaudeCode.command').write_text(sh)
           PYEOF
           chmod +x build/Install-ClaudeCode.command
+          # Zip to preserve the executable bit — browser downloads of raw files strip permissions
+          cd build && zip Install-ClaudeCode-mac.zip Install-ClaudeCode.command
         # .command extension lets macOS users double-click to run in Terminal
 
       - name: Upload .command artifact
         uses: actions/upload-artifact@v4
         with:
           name: mac-installer
-          path: build/Install-ClaudeCode.command
+          path: build/Install-ClaudeCode-mac.zip
 
   release:
     name: Publish GitHub Release
@@ -137,14 +142,18 @@ jobs:
             3. Follow the on-screen prompts
 
             ### macOS
-            1. Download **Install-ClaudeCode.command**
-            2. Right-click → **Open** (required the first time due to Gatekeeper)
+            1. Download **Install-ClaudeCode-mac.zip** and unzip it
+            2. Right-click `Install-ClaudeCode.command` → **Open** (required the first time due to Gatekeeper)
             3. Follow the on-screen prompts
+
+            > The installer is shipped as a zip to preserve file permissions. If you see "permission denied" after unzipping, run `chmod +x Install-ClaudeCode.command` in Terminal.
 
             ---
             After installation, open Claude Code and run `/dev-setup` to complete your environment setup.
+
+            > **Note:** These artifacts are published here for versioning. Download them and upload to Box for distribution to staff who don't have GitHub org access.
           files: |
             artifacts/ClaudeCodeInstaller.exe
-            artifacts/Install-ClaudeCode.command
+            artifacts/Install-ClaudeCode-mac.zip
           draft: false
           prerelease: false

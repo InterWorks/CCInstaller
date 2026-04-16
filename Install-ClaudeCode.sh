@@ -124,10 +124,12 @@ check_node() {
 }
 
 check_vscode() {
-    if [[ -d "/Applications/Visual Studio Code.app" ]]; then
-        log SUCCESS "VSCode is already installed"
-        return 0
-    fi
+    for try_dir in "/Applications" "$HOME/Applications"; do
+        if [[ -d "$try_dir/Visual Studio Code.app" ]]; then
+            log SUCCESS "VSCode is already installed in $try_dir"
+            return 0
+        fi
+    done
     log WARNING "VSCode is not installed"
     return 1
 }
@@ -240,9 +242,12 @@ add_local_bin_to_path() {
         profile="$HOME/.bash_profile"
     fi
 
-    echo "" >> "$profile"
-    echo "# Added by Claude Code Installer" >> "$profile"
-    echo 'export PATH="$HOME/.local/bin:$PATH"' >> "$profile"
+    # Only append if the marker isn't already in the profile (prevents duplicates on reruns)
+    if ! grep -q '# Added by Claude Code Installer' "$profile" 2>/dev/null; then
+        echo "" >> "$profile"
+        echo "# Added by Claude Code Installer" >> "$profile"
+        echo 'export PATH="$HOME/.local/bin:$PATH"' >> "$profile"
+    fi
 
     # Apply to current session
     export PATH="$HOME/.local/bin:$PATH"
@@ -277,11 +282,18 @@ install_vscode() {
     unzip -q "$zip_path" -d "$TEMP_DIR"
 
     if [[ -d "$TEMP_DIR/Visual Studio Code.app" ]]; then
-        mv "$TEMP_DIR/Visual Studio Code.app" /Applications/
-        log SUCCESS "Visual Studio Code installed to /Applications"
+        # Prefer /Applications (system-wide); fall back to ~/Applications if not writable
+        local install_dir="/Applications"
+        if [[ ! -w "$install_dir" ]]; then
+            log WARNING "/Applications is not writable; installing to ~/Applications instead"
+            install_dir="$HOME/Applications"
+            mkdir -p "$install_dir"
+        fi
+        mv "$TEMP_DIR/Visual Studio Code.app" "$install_dir/"
+        log SUCCESS "Visual Studio Code installed to $install_dir"
 
         # Install the 'code' CLI symlink
-        install_vscode_cli_symlink
+        install_vscode_cli_symlink "$install_dir"
         return 0
     fi
     log ERROR "VSCode app bundle not found after extracting download"
@@ -289,7 +301,8 @@ install_vscode() {
 }
 
 install_vscode_cli_symlink() {
-    local code_bin="/Applications/Visual Studio Code.app/Contents/Resources/app/bin/code"
+    local install_dir="${1:-/Applications}"
+    local code_bin="$install_dir/Visual Studio Code.app/Contents/Resources/app/bin/code"
     if [[ -f "$code_bin" ]]; then
         mkdir -p "$LOCAL_BIN_PATH"
         ln -sf "$code_bin" "$LOCAL_BIN_PATH/code"
@@ -301,9 +314,16 @@ install_claude_extension() {
     log INFO "Installing Claude Code extension for VSCode..."
 
     if ! command -v code &>/dev/null; then
-        log WARNING "'code' command not found; trying known path..."
-        local code_bin="/Applications/Visual Studio Code.app/Contents/Resources/app/bin/code"
-        if [[ -f "$code_bin" ]]; then
+        log WARNING "'code' command not found; trying known paths..."
+        local code_bin
+        for try_dir in "/Applications" "$HOME/Applications"; do
+            local try_bin="$try_dir/Visual Studio Code.app/Contents/Resources/app/bin/code"
+            if [[ -f "$try_bin" ]]; then
+                code_bin="$try_bin"
+                break
+            fi
+        done
+        if [[ -n "$code_bin" ]]; then
             ln -sf "$code_bin" "$LOCAL_BIN_PATH/code"
             export PATH="$LOCAL_BIN_PATH:$PATH"
         else
@@ -561,12 +581,14 @@ run_installation() {
     # Step 1: Ensure Git is available (via Xcode Command Line Tools)
     if ! check_git; then
         log WARNING "Git is required. It can be installed via Xcode Command Line Tools."
-        if [[ "$SILENT" == false ]]; then
-            read -rp "Install Xcode Command Line Tools (includes Git)? (Y/N): " response
-            if [[ "$response" != [Yy] ]]; then
-                log WARNING "Installation cancelled by user"
-                return 1
-            fi
+        if [[ "$SILENT" == true ]]; then
+            log ERROR "Git/Xcode Command Line Tools are missing. Silent mode cannot run the interactive installer. Install them first or re-run without --silent."
+            return 1
+        fi
+        read -rp "Install Xcode Command Line Tools (includes Git)? (Y/N): " response
+        if [[ "$response" != [Yy] ]]; then
+            log WARNING "Installation cancelled by user"
+            return 1
         fi
         if ! install_xcode_tools; then
             log ERROR "Git installation failed. Cannot continue."

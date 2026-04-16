@@ -476,6 +476,23 @@ function Install-DevSetupSkill {
 '@
         # SKILL_CONTENT_END
 
+        # Fallback for local/dev runs where the placeholder was not replaced by CI
+        if ($skillContent.Trim() -eq '##SKILL_CONTENT##') {
+            $scriptRoot = $PSScriptRoot
+            if (-not $scriptRoot -and $MyInvocation.MyCommand.Path) {
+                $scriptRoot = Split-Path -Path $MyInvocation.MyCommand.Path -Parent
+            }
+            $sourceSkillFile = if ($scriptRoot) { Join-Path $scriptRoot "SKILL.md" } else { $null }
+            if ($sourceSkillFile -and (Test-Path -Path $sourceSkillFile)) {
+                Write-Log "Loading SKILL.md from disk (local/dev run)" -Level Info
+                $skillContent = Get-Content -Path $sourceSkillFile -Raw
+            }
+            else {
+                Write-Log "Skill content placeholder not replaced and no local SKILL.md found — skipping skill install" -Level Warning
+                return $false
+            }
+        }
+
         if (Test-Path -Path $skillFile) {
             $existingContent = Get-Content -Path $skillFile -Raw
             if ($existingContent -eq $skillContent) {

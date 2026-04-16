@@ -20,8 +20,8 @@ LOCAL_BIN_PATH="$HOME/.local/bin"
 SKILL_DIR="$HOME/.claude/skills/interworks-setup"
 SKILL_FILE="$SKILL_DIR/SKILL.md"
 TEMP_DIR=$(mktemp -d /tmp/ClaudeCodeInstaller.XXXXXX)
-LOG_FILE="$TEMP_DIR/ClaudeCodeInstaller.log"
-chmod 600 "$LOG_FILE"
+LOG_FILE="/tmp/ClaudeCodeInstaller.log"
+touch "$LOG_FILE" && chmod 600 "$LOG_FILE"
 
 # ---------------------------------------------------------------------------
 # Argument parsing
@@ -657,6 +657,7 @@ run_installation() {
     install_dev_setup_skill || log WARNING "Developer-setup skill installation failed"
 
     # Step 7: Install VSCode and extension if requested
+    local skip_vscode=false
     if [[ "$install_vscode" == true ]]; then
         echo
         if ! check_vscode; then
@@ -664,17 +665,21 @@ run_installation() {
                 read -rp "Install Visual Studio Code? (Y/N): " response
                 if [[ "$response" != [Yy] ]]; then
                     log WARNING "Skipping VSCode installation"
-                    return 1
+                    skip_vscode=true
                 fi
             fi
-            install_vscode || { log ERROR "VSCode installation failed"; return 1; }
+            if [[ "$skip_vscode" == false ]]; then
+                install_vscode || { log ERROR "VSCode installation failed"; return 1; }
+            fi
         fi
 
-        echo
-        if check_claude_extension; then
-            log SUCCESS "Claude Code extension is already installed, skipping"
-        else
-            install_claude_extension || log WARNING "Extension installation failed"
+        if [[ "$skip_vscode" == false ]]; then
+            echo
+            if check_claude_extension; then
+                log SUCCESS "Claude Code extension is already installed, skipping"
+            else
+                install_claude_extension || log WARNING "Extension installation failed"
+            fi
         fi
     fi
 
@@ -682,6 +687,9 @@ run_installation() {
 }
 
 show_completion_message() {
+    local installed_cli="${1:-false}"
+    local installed_vscode="${2:-false}"
+
     echo
     echo -e "\033[32m═══════════════════════════════════════════════════════════\033[0m"
     echo -e "\033[32m  Installation Complete!\033[0m"
@@ -691,12 +699,17 @@ show_completion_message() {
     echo
     echo -e "\033[33mIMPORTANT:\033[0m Please open a new terminal window for PATH changes to take effect"
     echo
-    echo "To use Claude Code CLI, open a new terminal and run:"
-    echo -e "  \033[36mclaude\033[0m"
-    echo
-    echo "Any Claude Code installation will require you to log in to your Anthropic account."
-    echo "Follow the prompts when you run the 'claude' command or use the VSCode extension for the first time."
-    echo
+    if [[ "$installed_cli" == true ]]; then
+        echo "To use Claude Code CLI, open a new terminal and run:"
+        echo -e "  \033[36mclaude\033[0m"
+        echo
+        echo "You will be prompted to log in to your Anthropic account the first time you run 'claude'."
+        echo
+    fi
+    if [[ "$installed_vscode" == true ]]; then
+        echo "Open VSCode and log in to your Anthropic account when prompted by the Claude Code extension."
+        echo
+    fi
     echo -e "\033[33mNext step:\033[0m Open Claude Code and run \033[36m/dev-setup\033[0m to complete your environment setup"
     echo "           (GitHub account, org membership, Python, pre-commit, and more)."
     echo
@@ -714,7 +727,7 @@ main() {
 
     if [[ "$SILENT" == true ]]; then
         if run_installation "$INSTALL_CLI" "$INSTALL_VSCODE"; then
-            show_completion_message
+            show_completion_message "$INSTALL_CLI" "$INSTALL_VSCODE"
         else
             log ERROR "Installation did not complete successfully. Check the log for details: $LOG_FILE"
             exit 1
@@ -728,9 +741,9 @@ main() {
     choice=$(show_menu)
 
     case "$choice" in
-        1) run_installation true false  && show_completion_message ;;
-        2) run_installation false true  && show_completion_message ;;
-        3) run_installation true true   && show_completion_message ;;
+        1) run_installation true false  && show_completion_message true false ;;
+        2) run_installation false true  && show_completion_message false true ;;
+        3) run_installation true true   && show_completion_message true true ;;
         4) log WARNING "Installation cancelled by user"; exit 0 ;;
     esac
 

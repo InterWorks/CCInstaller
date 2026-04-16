@@ -41,11 +41,20 @@ jobs:
       - name: Embed SKILL.md into installer
         shell: pwsh
         run: |
+          $placeholder = "##SKILL_CONTENT##"
           $skillContent = Get-Content -Path .\SKILL.md -Raw
           # Trim trailing newline that Get-Content adds so the here-string terminator lands cleanly
           $skillContent = $skillContent.TrimEnd("`r`n", "`n")
           $installer = Get-Content -Path .\Install-ClaudeCode.ps1 -Raw
-          $installer = $installer.Replace("##SKILL_CONTENT##", $skillContent)
+          if (-not $installer.Contains($placeholder)) {
+            Write-Error "Placeholder '$placeholder' not found in Install-ClaudeCode.ps1 — was it renamed or removed?"
+            exit 1
+          }
+          $installer = $installer.Replace($placeholder, $skillContent)
+          if ($installer.Contains($placeholder)) {
+            Write-Error "Placeholder '$placeholder' was not fully replaced in Install-ClaudeCode.ps1"
+            exit 1
+          }
           Set-Content -Path .\Install-ClaudeCode.ps1 -Value $installer -Encoding UTF8 -NoNewline
 
       - name: Build EXE
@@ -90,15 +99,18 @@ jobs:
           mkdir -p build
           # Replace the embedded skill heredoc content with the canonical SKILL.md
           python3 - <<'PYEOF'
-          import re, pathlib
+          import re, pathlib, sys
           skill = pathlib.Path('SKILL.md').read_text()
           sh = pathlib.Path('Install-ClaudeCode.sh').read_text()
           # Replace everything between the SKILL_CONTENT heredoc markers
-          sh = re.sub(
+          sh, n = re.subn(
               r'(cat > "\$SKILL_FILE" << \'SKILL_EOF\'\n).*?(\nSKILL_EOF)',
               lambda m: m.group(1) + skill + m.group(2),
               sh, flags=re.DOTALL
           )
+          if n != 1:
+              print(f'ERROR: expected exactly 1 SKILL heredoc replacement, found {n}', file=sys.stderr)
+              sys.exit(1)
           pathlib.Path('build/Install-ClaudeCode.command').write_text(sh)
           PYEOF
           chmod +x build/Install-ClaudeCode.command

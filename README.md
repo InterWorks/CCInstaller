@@ -24,7 +24,7 @@ Both installers present an interactive menu:
 
 **Both platforms:**
 - Git (if not present)
-- Node.js (if not present; macOS requires Homebrew — if Homebrew is unavailable, Node.js installation is skipped)
+- Node.js (if not present; macOS requires Homebrew — if Homebrew is unavailable, Node.js installation is skipped; Windows installs via the official MSI)
 - Claude Code CLI
 - Visual Studio Code (if selected)
 - Claude Code VSCode extension (if selected)

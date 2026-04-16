@@ -576,7 +576,14 @@ function Start-Installation {
         Write-Log "Failed to add local bin to PATH" -Level Error
     }
 
-    # Step 4: Install Claude CLI if requested
+    # Step 4: Install Node.js if needed
+    if (-not (Test-NodeInstalled)) {
+        if (-not (Install-NodeJS)) {
+            Write-Log "Node.js installation failed" -Level Warning
+        }
+    }
+
+    # Step 6: Install Claude CLI if requested
     if ($InstallCLI) {
         Write-Host ""
         $cliInstalled = Test-ClaudeCLIInstalled
@@ -586,16 +593,17 @@ function Start-Installation {
         else {
             if (-not (Install-ClaudeCLI)) {
                 Write-Log "Claude CLI installation failed" -Level Error
+                return $false
             }
         }
     }
 
-    # Step 5: Install developer-setup skill
+    # Step 7: Install developer-setup skill
     if (-not (Install-DevSetupSkill)) {
         Write-Log "Developer-setup skill installation failed" -Level Warning
     }
 
-    # Step 6: Install VSCode and extension if requested
+    # Step 8: Install VSCode and extension if requested
     if ($InstallVSCodeAndExtension) {
         Write-Host ""
 
@@ -704,8 +712,14 @@ function Main {
     if ($Silent) {
         # -InstallVSCode and -InstallExtension both trigger the combined VSCode + extension path
         $installVSCodeAndExtension = $InstallVSCode -or $InstallExtension
-        Start-Installation -InstallCLI:$InstallCLI -InstallVSCodeAndExtension:$installVSCodeAndExtension
-        Show-CompletionMessage -InstalledCLI:$InstallCLI -InstalledVSCode:$installVSCodeAndExtension
+        $success = Start-Installation -InstallCLI:$InstallCLI -InstallVSCodeAndExtension:$installVSCodeAndExtension
+        if ($success) {
+            Show-CompletionMessage -InstalledCLI:$InstallCLI -InstalledVSCode:$installVSCodeAndExtension
+        }
+        else {
+            Write-Log "Installation did not complete successfully. Check the log for details: $($Script:Config.LogFile)" -Level Error
+            exit 1
+        }
     }
     else {
         # Interactive mode
@@ -713,16 +727,19 @@ function Main {
 
         switch ($choice) {
             "1" {
-                $null = Start-Installation -InstallCLI $true -InstallVSCodeAndExtension $false
-                Show-CompletionMessage -InstalledCLI $true -InstalledVSCode $false
+                if (Start-Installation -InstallCLI $true -InstallVSCodeAndExtension $false) {
+                    Show-CompletionMessage -InstalledCLI $true -InstalledVSCode $false
+                }
             }
             "2" {
-                $null = Start-Installation -InstallCLI $false -InstallVSCodeAndExtension $true
-                Show-CompletionMessage -InstalledCLI $false -InstalledVSCode $true
+                if (Start-Installation -InstallCLI $false -InstallVSCodeAndExtension $true) {
+                    Show-CompletionMessage -InstalledCLI $false -InstalledVSCode $true
+                }
             }
             "3" {
-                $null = Start-Installation -InstallCLI $true -InstallVSCodeAndExtension $true
-                Show-CompletionMessage -InstalledCLI $true -InstalledVSCode $true
+                if (Start-Installation -InstallCLI $true -InstallVSCodeAndExtension $true) {
+                    Show-CompletionMessage -InstalledCLI $true -InstalledVSCode $true
+                }
             }
             "4" {
                 Write-Log "Installation cancelled by user" -Level Warning

@@ -350,6 +350,17 @@ install_dev_setup_skill() {
 
     mkdir -p "$SKILL_DIR"
 
+    # Fallback for local/dev runs: if a SKILL.md sits next to this script, use it directly
+    local script_dir
+    script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+    if [[ -f "$script_dir/SKILL.md" ]]; then
+        log INFO "Loading SKILL.md from disk (local/dev run)"
+        cp "$script_dir/SKILL.md" "$SKILL_FILE"
+        log SUCCESS "Developer-setup skill installed to: $SKILL_FILE"
+        return 0
+    fi
+
+    # SKILL_CONTENT_START - replaced at build time by the workflow from SKILL.md
     cat > "$SKILL_FILE" << 'SKILL_EOF'
 ---
 name: dev-setup
@@ -570,6 +581,7 @@ Present a final summary:
 - **If something fails, troubleshoot.** Don't just say "installation failed" — look at the error, suggest fixes, try alternatives.
 - **Never ask the user to figure out technical details.** If you need their name and email, ask for their name and email — don't ask them to "configure git" and hand them a command to fill in.
 SKILL_EOF
+    # SKILL_CONTENT_END
 
     log SUCCESS "Developer-setup skill installed to: $SKILL_FILE"
 }

@@ -23,8 +23,6 @@ Both installers present an interactive menu:
 ### What gets installed
 
 **Both platforms:**
-- Git (if not present)
-- Node.js (if not present; macOS requires Homebrew — if Homebrew is unavailable, Node.js installation is skipped; Windows installs via the official MSI)
 - Claude Code CLI
 - Visual Studio Code (if selected)
 - Claude Code VSCode extension (if selected)
@@ -32,12 +30,14 @@ Both installers present an interactive menu:
 - Drops the `/dev-setup` skill into the Claude home directory (`~/.claude/skills/interworks-setup/SKILL.md` on macOS; `%USERPROFILE%\.claude\skills\interworks-setup\SKILL.md` on Windows)
 
 **Windows only:**
-- Git for Windows (includes Git Bash)
+- Git for Windows (if not present)
+- Node.js via MSI (if not present)
 - Sets `CLAUDE_CODE_GIT_BASH_PATH` environment variable
 
 **macOS only:**
-- Xcode Command Line Tools (includes Git)
-- Homebrew (used to install Node.js)
+- Xcode Command Line Tools / Git (if not present)
+- Homebrew (if not present; required for Node.js installation)
+- Node.js via Homebrew (if not present; skipped if Homebrew installation is declined or fails)
 
 ### After installation
 

@@ -19,8 +19,9 @@ CLAUDE_EXTENSION_ID="Anthropic.claude-code"
 LOCAL_BIN_PATH="$HOME/.local/bin"
 SKILL_DIR="$HOME/.claude/skills/interworks-setup"
 SKILL_FILE="$SKILL_DIR/SKILL.md"
-LOG_FILE="/tmp/ClaudeCodeInstaller.log"
 TEMP_DIR=$(mktemp -d /tmp/ClaudeCodeInstaller.XXXXXX)
+LOG_FILE="$TEMP_DIR/ClaudeCodeInstaller.log"
+chmod 600 "$LOG_FILE"
 
 # ---------------------------------------------------------------------------
 # Argument parsing
@@ -712,8 +713,12 @@ main() {
     trap 'rm -rf "$TEMP_DIR"' EXIT
 
     if [[ "$SILENT" == true ]]; then
-        run_installation "$INSTALL_CLI" "$INSTALL_VSCODE"
-        show_completion_message
+        if run_installation "$INSTALL_CLI" "$INSTALL_VSCODE"; then
+            show_completion_message
+        else
+            log ERROR "Installation did not complete successfully. Check the log for details: $LOG_FILE"
+            exit 1
+        fi
         return
     fi
 

@@ -44,7 +44,7 @@ jobs:
           $placeholder = "##SKILL_CONTENT##"
           $skillContent = Get-Content -Path .\SKILL.md -Raw
           # Trim trailing newline that Get-Content adds so the here-string terminator lands cleanly
-          $skillContent = $skillContent.TrimEnd("`r`n", "`n")
+          $skillContent = $skillContent.TrimEnd([char[]]@("`r", "`n"))
           $installer = Get-Content -Path .\Install-ClaudeCode.ps1 -Raw
           if (-not $installer.Contains($placeholder)) {
             Write-Error "Placeholder '$placeholder' not found in Install-ClaudeCode.ps1 — was it renamed or removed?"
@@ -99,18 +99,26 @@ jobs:
           mkdir -p build
           # Replace the embedded skill heredoc content with the canonical SKILL.md
           python3 - <<'PYEOF'
-          import re, pathlib, sys
+          import pathlib, sys
           skill = pathlib.Path('SKILL.md').read_text()
           sh = pathlib.Path('Install-ClaudeCode.sh').read_text()
-          # Replace everything between the SKILL_CONTENT heredoc markers
-          sh, n = re.subn(
-              r'(cat > "\$SKILL_FILE" << \'SKILL_EOF\'\n).*?(\nSKILL_EOF)',
-              lambda m: m.group(1) + skill + m.group(2),
-              sh, flags=re.DOTALL
-          )
-          if n != 1:
-              print(f'ERROR: expected exactly 1 SKILL heredoc replacement, found {n}', file=sys.stderr)
+          # Replace the heredoc content between the explicit SKILL_CONTENT_START/END markers.
+          # Everything from the line after SKILL_CONTENT_START up to (not including) SKILL_CONTENT_END
+          # is replaced with the canonical SKILL.md content wrapped in the heredoc.
+          start_marker = '# SKILL_CONTENT_START - replaced at build time by the workflow from SKILL.md\n'
+          end_marker   = '    # SKILL_CONTENT_END'
+          start_count = sh.count(start_marker)
+          end_count   = sh.count(end_marker)
+          if start_count != 1 or end_count != 1:
+              print(f'ERROR: expected exactly 1 pair of SKILL content markers, found start={start_count}, end={end_count}', file=sys.stderr)
               sys.exit(1)
+          start = sh.index(start_marker) + len(start_marker)
+          end   = sh.index(end_marker)
+          if start >= end:
+              print('ERROR: SKILL_CONTENT_START marker must appear before SKILL_CONTENT_END', file=sys.stderr)
+              sys.exit(1)
+          replacement = "    cat > \"$SKILL_FILE\" << 'SKILL_EOF'\n" + skill.rstrip('\n') + "\nSKILL_EOF\n"
+          sh = sh[:start] + replacement + sh[end:]
           pathlib.Path('build/Install-ClaudeCode.command').write_text(sh)
           PYEOF
           chmod +x build/Install-ClaudeCode.command

@@ -459,6 +459,61 @@ function Install-VSCode {
     }
 }
 
+function Install-DevSetupSkill {
+    $skillDir = Join-Path $env:USERPROFILE ".claude\skills\interworks-setup"
+    $skillFile = Join-Path $skillDir "SKILL.md"
+
+    Write-Log "Installing InterWorks developer-setup skill..." -Level Info
+
+    try {
+        if (-not (Test-Path $skillDir)) {
+            New-Item -Path $skillDir -ItemType Directory -Force | Out-Null
+        }
+
+        # SKILL_CONTENT_START - replaced at build time by the workflow from SKILL.md
+        $skillContent = @'
+##SKILL_CONTENT##
+'@
+        # SKILL_CONTENT_END
+
+        # Fallback for local/dev runs where the placeholder was not replaced by CI
+        if ($skillContent.Trim() -eq '##SKILL_CONTENT##') {
+            $scriptRoot = $PSScriptRoot
+            if (-not $scriptRoot -and $MyInvocation.MyCommand.Path) {
+                $scriptRoot = Split-Path -Path $MyInvocation.MyCommand.Path -Parent
+            }
+            $sourceSkillFile = if ($scriptRoot) { Join-Path $scriptRoot "SKILL.md" } else { $null }
+            if ($sourceSkillFile -and (Test-Path -Path $sourceSkillFile)) {
+                Write-Log "Loading SKILL.md from disk (local/dev run)" -Level Info
+                $skillContent = Get-Content -Path $sourceSkillFile -Raw
+            }
+            else {
+                Write-Log "Skill content placeholder not replaced and no local SKILL.md found — skipping skill install" -Level Warning
+                return $false
+            }
+        }
+
+        if (Test-Path -Path $skillFile) {
+            $existingContent = Get-Content -Path $skillFile -Raw
+            if ($existingContent -eq $skillContent) {
+                Write-Log "Developer-setup skill is already up to date: $skillFile" -Level Success
+                return $true
+            }
+            $backupFile = Join-Path (Split-Path -Path $skillFile -Parent) ("{0}.{1}.bak" -f (Split-Path -Path $skillFile -Leaf), (Get-Date -Format "yyyyMMddHHmmss"))
+            Copy-Item -Path $skillFile -Destination $backupFile
+            Write-Log "Existing developer-setup skill backed up to: $backupFile" -Level Info
+        }
+
+        Set-Content -Path $skillFile -Value $skillContent -Encoding UTF8
+        Write-Log "Developer-setup skill installed to: $skillFile" -Level Success
+        return $true
+    }
+    catch {
+        Write-Log "Error installing developer-setup skill: $_" -Level Error
+        return $false
+    }
+}
+
 function Install-ClaudeExtension {
     Write-Log "Installing Claude Code extension for VSCode..." -Level Info
 
@@ -521,7 +576,14 @@ function Start-Installation {
         Write-Log "Failed to add local bin to PATH" -Level Error
     }
 
-    # Step 4: Install Claude CLI if requested
+    # Step 4: Install Node.js if needed
+    if (-not (Test-NodeInstalled)) {
+        if (-not (Install-NodeJS)) {
+            Write-Log "Node.js installation failed" -Level Warning
+        }
+    }
+
+    # Step 6: Install Claude CLI if requested
     if ($InstallCLI) {
         Write-Host ""
         $cliInstalled = Test-ClaudeCLIInstalled
@@ -531,11 +593,17 @@ function Start-Installation {
         else {
             if (-not (Install-ClaudeCLI)) {
                 Write-Log "Claude CLI installation failed" -Level Error
+                return $false
             }
         }
     }
 
-    # Step 5: Install VSCode and extension if requested
+    # Step 7: Install developer-setup skill
+    if (-not (Install-DevSetupSkill)) {
+        Write-Log "Developer-setup skill installation failed" -Level Warning
+    }
+
+    # Step 8: Install VSCode and extension if requested
     if ($InstallVSCodeAndExtension) {
         Write-Host ""
 
@@ -580,6 +648,11 @@ function Start-Installation {
 }
 
 function Show-CompletionMessage {
+    param(
+        [bool]$InstalledCLI,
+        [bool]$InstalledVSCode
+    )
+
     $host.UI.RawUI.WindowTitle = "Claude Code Installer"
     Write-Host ""
     Write-Host "═══════════════════════════════════════════════════════════" -ForegroundColor Green
@@ -591,11 +664,25 @@ function Show-CompletionMessage {
     Write-Host "IMPORTANT: " -ForegroundColor Yellow -NoNewline
     Write-Host "Please restart your terminal/VSCode for changes to take effect" -ForegroundColor White
     Write-Host ""
-    Write-Host "To use Claude Code CLI, open a new PowerShell or CMD window and run:" -ForegroundColor White
-    Write-Host "  claude" -ForegroundColor Cyan
-    Write-Host ""
-    Write-Host "Any Claude Code installation will require you to login to your Anthropic account." -ForegroundColor White
-    Write-Host "Follow the prompts when you run the 'claude' command or use the VSCode extension for the first time." -ForegroundColor White
+
+    if ($InstalledCLI) {
+        Write-Host "To use Claude Code CLI, open a new PowerShell or CMD window and run:" -ForegroundColor White
+        Write-Host "  claude" -ForegroundColor Cyan
+        Write-Host ""
+        Write-Host "You will be prompted to log in to your Anthropic account on first run." -ForegroundColor White
+        Write-Host ""
+    }
+
+    if ($InstalledVSCode) {
+        Write-Host "The Claude Code extension is available in VSCode." -ForegroundColor White
+        Write-Host "You will be prompted to log in to your Anthropic account the first time you use it." -ForegroundColor White
+        Write-Host ""
+    }
+
+    Write-Host "Next step: " -ForegroundColor Yellow -NoNewline
+    Write-Host "Open Claude Code and run " -ForegroundColor White -NoNewline
+    Write-Host "/dev-setup" -ForegroundColor Cyan -NoNewline
+    Write-Host " to complete your environment setup (GitHub, Python, pre-commit, and more)." -ForegroundColor White
     Write-Host ""
     Write-Host "Installation log saved to: $($Script:Config.LogFile)" -ForegroundColor Gray
     Write-Host ""
@@ -623,8 +710,16 @@ function Main {
 
     # Determine installation mode
     if ($Silent) {
-        # Use parameters for silent mode
-        Start-Installation -InstallCLI:$InstallCLI -InstallVSCodeAndExtension:$InstallExtension
+        # -InstallVSCode and -InstallExtension both trigger the combined VSCode + extension path
+        $installVSCodeAndExtension = $InstallVSCode -or $InstallExtension
+        $success = Start-Installation -InstallCLI:$InstallCLI -InstallVSCodeAndExtension:$installVSCodeAndExtension
+        if ($success) {
+            Show-CompletionMessage -InstalledCLI:$InstallCLI -InstalledVSCode:$installVSCodeAndExtension
+        }
+        else {
+            Write-Log "Installation did not complete successfully. Check the log for details: $($Script:Config.LogFile)" -Level Error
+            exit 1
+        }
     }
     else {
         # Interactive mode
@@ -632,16 +727,19 @@ function Main {
 
         switch ($choice) {
             "1" {
-                $null = Start-Installation -InstallCLI $true -InstallVSCodeAndExtension $false
-                Show-CompletionMessage
+                if (Start-Installation -InstallCLI $true -InstallVSCodeAndExtension $false) {
+                    Show-CompletionMessage -InstalledCLI $true -InstalledVSCode $false
+                }
             }
             "2" {
-                $null = Start-Installation -InstallCLI $false -InstallVSCodeAndExtension $true
-                Show-CompletionMessage
+                if (Start-Installation -InstallCLI $false -InstallVSCodeAndExtension $true) {
+                    Show-CompletionMessage -InstalledCLI $false -InstalledVSCode $true
+                }
             }
             "3" {
-                $null = Start-Installation -InstallCLI $true -InstallVSCodeAndExtension $true
-                Show-CompletionMessage
+                if (Start-Installation -InstallCLI $true -InstallVSCodeAndExtension $true) {
+                    Show-CompletionMessage -InstalledCLI $true -InstalledVSCode $true
+                }
             }
             "4" {
                 Write-Log "Installation cancelled by user" -Level Warning

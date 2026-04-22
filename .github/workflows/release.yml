@@ -1,0 +1,179 @@
+name: Build and Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  build-windows:
+    name: Build Windows EXE
+    runs-on: windows-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Extract version from tag
+        id: version
+        shell: pwsh
+        run: |
+          $tag = "${{ github.ref_name }}"
+          $semver = $tag.TrimStart('v')
+          # Validate: must be numeric semver only (no prerelease/build metadata)
+          if ($semver -notmatch '^\d+\.\d+\.\d+$') {
+            Write-Error "Tag '$tag' is not a valid release version (expected vMAJOR.MINOR.PATCH, e.g. v1.2.3). Prerelease tags like v1.0.0-rc.1 are not supported."
+            exit 1
+          }
+          # Convert to four-part version required by ps2exe (e.g. 1.2.3 -> 1.2.3.0)
+          $fourPart = "$semver.0"
+          echo "version=$fourPart" >> $env:GITHUB_OUTPUT
+          echo "semver=$semver" >> $env:GITHUB_OUTPUT
+
+      - name: Install ps2exe
+        shell: pwsh
+        run: Install-Module -Name ps2exe -Scope CurrentUser -Force -AllowClobber
+
+      - name: Embed SKILL.md into installer
+        shell: pwsh
+        run: |
+          $placeholder = "##SKILL_CONTENT##"
+          $skillContent = Get-Content -Path .\SKILL.md -Raw
+          # Trim trailing newline that Get-Content adds so the here-string terminator lands cleanly
+          $skillContent = $skillContent.TrimEnd([char[]]@("`r", "`n"))
+          $installer = Get-Content -Path .\Install-ClaudeCode.ps1 -Raw
+          if (-not $installer.Contains($placeholder)) {
+            Write-Error "Placeholder '$placeholder' not found in Install-ClaudeCode.ps1 — was it renamed or removed?"
+            exit 1
+          }
+          $installer = $installer.Replace($placeholder, $skillContent)
+          if ($installer.Contains($placeholder)) {
+            Write-Error "Placeholder '$placeholder' was not fully replaced in Install-ClaudeCode.ps1"
+            exit 1
+          }
+          Set-Content -Path .\Install-ClaudeCode.ps1 -Value $installer -Encoding UTF8 -NoNewline
+
+      - name: Build EXE
+        shell: pwsh
+        run: |
+          $version = "${{ steps.version.outputs.version }}"
+          New-Item -Path .\build -ItemType Directory -Force | Out-Null
+
+          $iconParam = @{}
+          if (Test-Path ".\InterWorks-Logo.ico") {
+            $iconParam['IconFile'] = ".\InterWorks-Logo.ico"
+          }
+
+          Invoke-PS2EXE `
+            -InputFile  ".\Install-ClaudeCode.ps1" `
+            -OutputFile ".\build\ClaudeCodeInstaller.exe" `
+            -RequireAdmin `
+            -NoConsole:$false `
+            -Title       "Claude Code Installer" `
+            -Description "Automated installer for Claude Code CLI and VSCode extension" `
+            -Company     "InterWorks" `
+            -Product     "Claude Code Installer" `
+            -Copyright   "Copyright © $(Get-Date -Format yyyy) InterWorks" `
+            -Version     $version `
+            @iconParam
+
+      - name: Upload EXE artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-installer
+          path: build/ClaudeCodeInstaller.exe
+
+  build-mac:
+    name: Package macOS Installer
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Embed SKILL.md into installer and package as .command
+        run: |
+          mkdir -p build
+          # Replace the embedded skill heredoc content with the canonical SKILL.md
+          python3 - <<'PYEOF'
+          import pathlib, sys
+          skill = pathlib.Path('SKILL.md').read_text()
+          sh = pathlib.Path('Install-ClaudeCode.sh').read_text()
+          # Replace the heredoc content between the explicit SKILL_CONTENT_START/END markers.
+          # Everything from the line after SKILL_CONTENT_START up to (not including) SKILL_CONTENT_END
+          # is replaced with the canonical SKILL.md content wrapped in the heredoc.
+          start_marker = '# SKILL_CONTENT_START - replaced at build time by the workflow from SKILL.md\n'
+          end_marker   = '    # SKILL_CONTENT_END'
+          start_count = sh.count(start_marker)
+          end_count   = sh.count(end_marker)
+          if start_count != 1 or end_count != 1:
+              print(f'ERROR: expected exactly 1 pair of SKILL content markers, found start={start_count}, end={end_count}', file=sys.stderr)
+              sys.exit(1)
+          start = sh.index(start_marker) + len(start_marker)
+          end   = sh.index(end_marker)
+          if start >= end:
+              print('ERROR: SKILL_CONTENT_START marker must appear before SKILL_CONTENT_END', file=sys.stderr)
+              sys.exit(1)
+          replacement = "    cat > \"$SKILL_FILE\" << 'SKILL_EOF'\n" + skill.rstrip('\n') + "\nSKILL_EOF\n"
+          sh = sh[:start] + replacement + sh[end:]
+          pathlib.Path('build/Install-ClaudeCode.command').write_text(sh)
+          PYEOF
+          chmod +x build/Install-ClaudeCode.command
+          # Zip to preserve the executable bit — browser downloads of raw files strip permissions
+          cd build && zip Install-ClaudeCode-mac.zip Install-ClaudeCode.command
+        # .command extension lets macOS users double-click to run in Terminal
+
+      - name: Upload .command artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: mac-installer
+          path: build/Install-ClaudeCode-mac.zip
+
+  release:
+    name: Publish GitHub Release
+    needs: [build-windows, build-mac]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download Windows artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: windows-installer
+          path: artifacts
+
+      - name: Download Mac artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: mac-installer
+          path: artifacts
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: "Claude Code Installer ${{ github.ref_name }}"
+          body: |
+            ## Claude Code Installer ${{ github.ref_name }}
+
+            ### Windows
+            1. Download **ClaudeCodeInstaller.exe**
+            2. Right-click → **Run as Administrator**
+            3. Follow the on-screen prompts
+
+            ### macOS
+            1. Download **Install-ClaudeCode-mac.zip** and unzip it
+            2. Right-click `Install-ClaudeCode.command` → **Open** (required the first time due to Gatekeeper)
+            3. Follow the on-screen prompts
+
+            > The installer is shipped as a zip to preserve file permissions. If you see "permission denied" after unzipping, run `chmod +x Install-ClaudeCode.command` in Terminal.
+
+            ---
+            After installation, open Claude Code and run `/dev-setup` to complete your environment setup.
+
+            > **Note:** These artifacts are published here for versioning. Download them and upload to Box for distribution to staff who don't have GitHub org access.
+          files: |
+            artifacts/ClaudeCodeInstaller.exe
+            artifacts/Install-ClaudeCode-mac.zip
+          draft: false
+          prerelease: false

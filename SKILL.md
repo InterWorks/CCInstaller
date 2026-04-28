@@ -187,7 +187,7 @@ Install at **user scope** so it's available across all your projects.
 **If the marketplace or plugin isn't visible:**
 - Confirm org membership is active (Step 3) — you need org access to authenticate to the private marketplace repo.
 - Restart Claude Code if you only just gained org access (server-managed settings are polled at startup and hourly).
-- If it's still not visible after a restart, ask in **#iw-ai-coe** on Slack.
+- If it's still not visible after a restart, ask in **#iw-ai** on Slack.
 
 ## Step 6: Smoke Test
 

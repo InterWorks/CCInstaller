@@ -460,7 +460,7 @@ function Install-VSCode {
 }
 
 function Install-DevSetupSkill {
-    $skillDir = Join-Path $env:USERPROFILE ".claude\skills\interworks-setup"
+    $skillDir = Join-Path $env:USERPROFILE ".claude\skills\dev-setup"
     $skillFile = Join-Path $skillDir "SKILL.md"
 
     Write-Log "Installing InterWorks developer-setup skill..." -Level Info

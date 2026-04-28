@@ -13,7 +13,7 @@ This skill is the bootstrap entry point for new staff. It must reach users **bef
 
 The source of truth for this file is `InterWorks/claude-plugins` (for version control alongside the other InterWorks skills), but the distribution mechanism is the installer, not the marketplace.
 
-- **Windows:** The custom InterWorks installer drops this skill file into `~/.claude/skills/interworks-setup/SKILL.md` so `/dev-setup` is available immediately, before marketplace access is configured. The installer also handles Git, Node.js, and Claude Code itself.
+- **Windows:** The custom InterWorks installer drops this skill file into `~/.claude/skills/dev-setup/SKILL.md` so `/dev-setup` is available immediately, before marketplace access is configured. The installer also handles Git, Node.js, and Claude Code itself.
 - **macOS:** The macOS installer likewise places this skill file on disk as part of installing Claude Code components.
 
 This skill then guides the user through everything the installer doesn't handle directly: GitHub account setup, org membership, Python, pre-commit/gitleaks, and marketplace access.

@@ -13,7 +13,7 @@ This skill is the bootstrap entry point for new staff. It must reach users **bef
 
 The source of truth for this file is `InterWorks/claude-plugins` (for version control alongside the other InterWorks skills), but the distribution mechanism is the installer, not the marketplace.
 
-- **Windows:** The custom InterWorks installer drops this skill file into `~/.claude/skills/interworks-setup/SKILL.md` so `/dev-setup` is available immediately, before marketplace access is configured. The installer also handles Git, Node.js, and Claude Code itself.
+- **Windows:** The custom InterWorks installer drops this skill file into `~/.claude/skills/dev-setup/SKILL.md` so `/dev-setup` is available immediately, before marketplace access is configured. The installer also handles Git, Node.js, and Claude Code itself.
 - **macOS:** The macOS installer likewise places this skill file on disk as part of installing Claude Code components.
 
 This skill then guides the user through everything the installer doesn't handle directly: GitHub account setup, org membership, Python, pre-commit/gitleaks, and marketplace access.
@@ -187,7 +187,7 @@ Install at **user scope** so it's available across all your projects.
 **If the marketplace or plugin isn't visible:**
 - Confirm org membership is active (Step 3) — you need org access to authenticate to the private marketplace repo.
 - Restart Claude Code if you only just gained org access (server-managed settings are polled at startup and hourly).
-- If it's still not visible after a restart, ask in **#iw-ai-coe** on Slack.
+- If it's still not visible after a restart, ask in **#iw-ai** on Slack.
 
 ## Step 6: Smoke Test
 

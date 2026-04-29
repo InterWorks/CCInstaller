@@ -27,7 +27,7 @@ Both installers present an interactive menu:
 - Visual Studio Code (if selected)
 - Claude Code VSCode extension (if selected)
 - Adds the user-local bin directory to PATH (`~/.local/bin` on macOS; `%USERPROFILE%\.local\bin` on Windows)
-- Drops the `/dev-setup` skill into the Claude home directory (`~/.claude/skills/interworks-setup/SKILL.md` on macOS; `%USERPROFILE%\.claude\skills\interworks-setup\SKILL.md` on Windows)
+- Drops the `/dev-setup` skill into the Claude home directory (`~/.claude/skills/dev-setup/SKILL.md` on macOS; `%USERPROFILE%\.claude\skills\dev-setup\SKILL.md` on Windows)
 
 **Windows only:**
 - Git for Windows (if not present)
